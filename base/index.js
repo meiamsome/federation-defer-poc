@@ -32,12 +32,27 @@ const server = new ApolloServer({
             id: ID! # 0s
             name: String! # 2s
         }
+
+        # Federation subgraph support (partial)
+        scalar _Any
+        union _Entity =
+         | Product
+         | Company
+         | Person
+         | Country
+        extend type Query {
+            _entities(representations: [_Any!]!): [_Entity]!
+        }
     `,
     resolvers: {
         Query: {
             async product(_, { id }) {
                 await delay(1000);
                 return { id };
+            },
+            _entities(_, { representations }) {
+                // Schema is written such that this should always be valid.
+                return representations;
             },
         },
         Product: {
