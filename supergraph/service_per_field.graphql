@@ -1,0 +1,83 @@
+schema
+  @core(feature: "https://specs.apollo.dev/core/v0.1"),
+  @core(feature: "https://specs.apollo.dev/join/v0.1")
+{
+  query: Query
+}
+
+directive @core(feature: String!) repeatable on SCHEMA
+
+directive @join__field(graph: join__Graph, requires: join__FieldSet, provides: join__FieldSet) on FIELD_DEFINITION
+
+directive @join__type(graph: join__Graph!, key: join__FieldSet) repeatable on OBJECT | INTERFACE
+
+directive @join__owner(graph: join__Graph!) on OBJECT | INTERFACE
+
+directive @join__graph(name: String!, url: String!) on ENUM_VALUE
+
+scalar join__FieldSet
+
+enum join__Graph {
+  QUERY_PRODUCT @join__graph(name: "Query.product" url: "http://localhost:8080")
+  PRODUCT_ID @join__graph(name: "Product.id" url: "http://localhost:8080")
+  PRODUCT_MANUFACTURER @join__graph(name: "Product.manufacturer" url: "http://localhost:8080")
+  PRODUCT_COUNTRY_OF_ORIGIN @join__graph(name: "Product.countryOfOrigin" url: "http://localhost:8080")
+  PRODUCT_IN_STOCK @join__graph(name: "Product.inStock" url: "http://localhost:8080")
+  COMPANY_ID @join__graph(name: "Company.id" url: "http://localhost:8080")
+  COMPANY_NAME @join__graph(name: "Company.name" url: "http://localhost:8080")
+  COMPANY_OWNER @join__graph(name: "Company.owner" url: "http://localhost:8080")
+  PERSON_ID @join__graph(name: "Person.id" url: "http://localhost:8080")
+  PERSON_NAME @join__graph(name: "Person.name" url: "http://localhost:8080")
+  COUNTRY_ID @join__graph(name: "Country.id" url: "http://localhost:8080")
+  COUNTRY_NAME @join__graph(name: "Country.name" url: "http://localhost:8080")
+}
+
+type Query {
+    product(id: ID!): Product @join__field(graph: QUERY_PRODUCT)
+}
+
+type Product
+  @join__owner(graph: PRODUCT_ID)
+  @join__type(graph: PRODUCT_ID, key: "id")
+  @join__type(graph: PRODUCT_MANUFACTURER, key: "id")
+  @join__type(graph: PRODUCT_COUNTRY_OF_ORIGIN, key: "id")
+  @join__type(graph: PRODUCT_IN_STOCK, key: "id")
+  @join__type(graph: QUERY_PRODUCT, key: "id")
+{
+    id: ID! @join__field(graph: PRODUCT_ID)
+    manufacturer: Company! @join__field(graph: PRODUCT_MANUFACTURER)
+    countryOfOrigin: Country! @join__field(graph: PRODUCT_COUNTRY_OF_ORIGIN)
+    inStock: Boolean! @join__field(graph: PRODUCT_IN_STOCK)
+}
+
+type Company
+  @join__owner(graph: COMPANY_ID)
+  @join__type(graph: COMPANY_ID, key: "id")
+  @join__type(graph: COMPANY_NAME, key: "id")
+  @join__type(graph: COMPANY_OWNER, key: "id")
+  @join__type(graph: PRODUCT_MANUFACTURER, key: "id")
+{
+    id: ID! @join__field(graph: COMPANY_ID)
+    name: String! @join__field(graph: COMPANY_NAME)
+    owner: Person! @join__field(graph: COMPANY_OWNER)
+}
+
+type Person
+  @join__owner(graph: PERSON_ID)
+  @join__type(graph: PERSON_ID, key: "id")
+  @join__type(graph: PERSON_NAME, key: "id")
+  @join__type(graph: COMPANY_OWNER, key: "id")
+{
+    id: ID! @join__field(graph: PERSON_ID)
+    name: String! @join__field(graph: PERSON_NAME)
+}
+
+type Country
+  @join__owner(graph: COUNTRY_ID)
+  @join__type(graph: COUNTRY_ID, key: "id")
+  @join__type(graph: COUNTRY_NAME, key: "id")
+  @join__type(graph: PRODUCT_COUNTRY_OF_ORIGIN, key: "id")
+{
+    id: ID! @join__field(graph: COUNTRY_ID)
+    name: String! @join__field(graph: COUNTRY_NAME)
+}
