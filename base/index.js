@@ -43,6 +43,12 @@ const server = new ApolloServer({
         extend type Query {
             _entities(representations: [_Any!]!): [_Entity]!
         }
+
+        # Support @defer
+        directive @defer(
+            label: String
+            if: Boolean! = true
+        ) on FRAGMENT_SPREAD | INLINE_FRAGMENT
     `,
     resolvers: {
         Query: {
