@@ -89,11 +89,101 @@ const wrapWithEntities = (selectionSet, typename) => ({
     }]
 });
 
+const wrapWithDefer = (selectionSet, label) => ({
+    kind: Kind.INLINE_FRAGMENT,
+    directives: [{
+        kind: Kind.DIRECTIVE,
+        name: {
+            kind: Kind.NAME,
+            value: 'defer',
+        },
+        arguments: [{
+            kind: Kind.ARGUMENT,
+            name: {
+                kind: Kind.NAME,
+                value: 'label',
+            },
+            value: {
+                kind: Kind.STRING,
+                value: label,
+            },
+        }],
+    }],
+    selectionSet,
+});
+
+async function* multipartReader(reader, boundary) {
+    const utf8Decoder = new TextDecoder("utf-8");
+    let hasFirstBoundary = false;
+    let boundarySearchOffset = 0;
+    let data = '';
+    let isDone = false;
+    while(!isDone) {
+        const {
+            done,
+            value,
+        } = await reader.read();
+        isDone = done;
+        if (value)
+            data += utf8Decoder.decode(value, { stream: !done });
+
+        while (true) {
+            const nextBoundary = data.indexOf(boundary, boundarySearchOffset);
+            if (nextBoundary === -1) {
+                boundarySearchOffset = data.length - boundary.length;
+                break;
+            }
+            const thisData = data.slice(0, nextBoundary);
+            data = data.slice(nextBoundary + boundary.length);
+            if (!hasFirstBoundary) {
+                hasFirstBoundary = true;
+            } else {
+                yield thisData;
+            }
+
+            boundarySearchOffset = 0;
+        }
+    }
+    if (data !== '--\r\n')
+        throw new Error('Multipart end failure.');
+}
+
 const executeSubgraphOperation = async (plan, entities, rootPlan, variableValues, schema) => {
     if (!isSchema(schema))
         throw new Error('schema is not a schema');
     console.log(`EXECUTING against ${plan.server}`);
     const isChild = plan.type === PLAN_CHILD_OPERATION;
+
+    const deferResolves = {};
+    const deferRejects = {};
+    const deferPromises = {};
+    const createDefer = (name) => {
+        deferPromises[name] = new Promise((resolve, reject) => {
+            deferResolves[name] = resolve;
+            deferRejects[name] = reject;
+        });
+        return deferPromises[name];
+    }
+
+    const resultPromise = createDefer('result');
+    const resultSelectionSet = isChild
+        ? wrapWithEntities(plan.selectionSet, plan.parentTypename)
+        : plan.selectionSet;
+    const selectionSet = {
+        kind: Kind.SELECTION_SET,
+        selections:
+            plan.children.length
+                ? [
+                    wrapWithDefer(
+                        resultSelectionSet,
+                        'result',
+                    )
+                ]
+                : [{
+                    kind: Kind.INLINE_FRAGMENT,
+                    selectionSet: resultSelectionSet,
+                }],
+    };
 
     const document = {
         kind: Kind.DOCUMENT,
@@ -105,7 +195,7 @@ const executeSubgraphOperation = async (plan, entities, rootPlan, variableValues
                     ...Object.keys(plan.variables).map((variable) => rootPlan.variableDefinitions[variable]),
                     ...(isChild ? [REPRESENTATIONS_VARIABLE_DEFINITION] : [])
                 ],
-                selectionSet: isChild ? wrapWithEntities(plan.selectionSet, plan.parentTypename) : plan.selectionSet,
+                selectionSet,
             },
         ],
     };
@@ -125,19 +215,67 @@ const executeSubgraphOperation = async (plan, entities, rootPlan, variableValues
         }),
         method: 'POST',
         headers: {
+            'accept': 'multipart/mixed; deferSpec=20220824, application/json',
             'content-type': 'application/json',
         },
     });
     if (!resp.ok)
         throw new Error(`Request to ${plan.server} failed: ${resp.status}\n${await resp.text()}`);
-    const result = await resp.json();
-    if (result.errors?.length)
-        throw new Error(`Errors calling ${plan.server}:${result.errors.map(x => JSON.stringify(x)).join(`\n`)}`);
 
+    const contentType = resp.headers.get('content-type');
+    if (contentType.startsWith('multipart/mixed;')) {
+        const multipartData = Object.fromEntries(
+            contentType.split(';')
+                .slice(1)
+                .map(part => part.trim().split('=')),
+        );
+        if (multipartData['deferSpec'] !== '20220824')
+            throw new Error('Mismatched deferSpec!');
+        const boundary = `--${multipartData['boundary'].slice(1, -1)}`;
+        const reader = resp.body.getReader();
+
+        for await (const partData of multipartReader(reader, boundary)) {
+            const lines = partData.trim().split('\r\n\r\n');
+            if (lines.length !== 2)
+                throw new Error('Unexpected line length in multipart');
+            if (lines[0] !== 'content-type: application/json; charset=utf-8')
+                throw new Error('Unexpected part header')
+            const part = JSON.parse(lines[1]);
+            if (part.errors)
+                throw new Error(`Errors calling ${plan.server}:${part.errors.map(x => JSON.stringify(x)).join(`\n`)}`);
+
+            if ('data' in part) {
+                // Initial response ignored
+            } else {
+                if (!('incremental' in part))
+                    throw new Error('No incremental pieces');
+                for (const incrementalPart of part.incremental) {
+                    if (incrementalPart.errors) {
+                        deferRejects[incrementalPart.label](new Error(`Errors calling ${plan.server}:${incrementalPart.errors.map(x => JSON.stringify(x)).join(`\n`)}`));
+                    } else {
+                        deferResolves[incrementalPart.label](incrementalPart.data);
+                    }
+                    delete deferRejects[incrementalPart.label];
+                    delete deferResolves[incrementalPart.label];
+                }
+            }
+        }
+
+    } else if (contentType.startsWith('application/json')) {
+        const result = await resp.json();
+        if (result.errors?.length)
+            throw new Error(`Errors calling ${plan.server}:${result.errors.map(x => JSON.stringify(x)).join(`\n`)}`);
+        for (const resolveDeferedPromise of Object.values(deferResolves))
+            resolveDeferedPromise(result.data);
+    } else {
+        throw new Error(`Unacceptable response type ${contentType}`);
+    }
+
+    const data = await resultPromise;
     console.timeEnd(`Request ${plan.id}: ${plan.server} (${url})`);
 
     await Promise.all(plan.children.map(async (childPlan) => {
-        let currentData = [result.data];
+        let currentData = [data];
         if (isChild)
             currentData = currentData.flatMap(x => x._entities)
         for (const path of childPlan.parentPath) {
@@ -153,7 +291,7 @@ const executeSubgraphOperation = async (plan, entities, rootPlan, variableValues
         currentData.map((data, i) => Object.assign(data, childData._entities[i]));
     }));
 
-    return result.data;
+    return data;
 }
 
 
