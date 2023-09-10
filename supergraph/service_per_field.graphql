@@ -18,18 +18,18 @@ directive @join__graph(name: String!, url: String!) on ENUM_VALUE
 scalar join__FieldSet
 
 enum join__Graph {
-  QUERY_PRODUCT @join__graph(name: "Query.product" url: "http://localhost:8080")
-  PRODUCT_ID @join__graph(name: "Product.id" url: "http://localhost:8080")
-  PRODUCT_MANUFACTURER @join__graph(name: "Product.manufacturer" url: "http://localhost:8080")
-  PRODUCT_COUNTRY_OF_ORIGIN @join__graph(name: "Product.countryOfOrigin" url: "http://localhost:8080")
-  PRODUCT_IN_STOCK @join__graph(name: "Product.inStock" url: "http://localhost:8080")
-  COMPANY_ID @join__graph(name: "Company.id" url: "http://localhost:8080")
-  COMPANY_NAME @join__graph(name: "Company.name" url: "http://localhost:8080")
-  COMPANY_OWNER @join__graph(name: "Company.owner" url: "http://localhost:8080")
-  PERSON_ID @join__graph(name: "Person.id" url: "http://localhost:8080")
-  PERSON_NAME @join__graph(name: "Person.name" url: "http://localhost:8080")
-  COUNTRY_ID @join__graph(name: "Country.id" url: "http://localhost:8080")
-  COUNTRY_NAME @join__graph(name: "Country.name" url: "http://localhost:8080")
+  QUERY_PRODUCT @join__graph(name: "Query.product" url: "http://base:8080")
+  PRODUCT_ID @join__graph(name: "Product.id" url: "http://base:8080")
+  PRODUCT_MANUFACTURER @join__graph(name: "Product.manufacturer" url: "http://base:8080")
+  PRODUCT_COUNTRY_OF_ORIGIN @join__graph(name: "Product.countryOfOrigin" url: "http://base:8080")
+  PRODUCT_IN_STOCK @join__graph(name: "Product.inStock" url: "http://base:8080")
+  COMPANY_ID @join__graph(name: "Company.id" url: "http://base:8080")
+  COMPANY_NAME @join__graph(name: "Company.name" url: "http://base:8080")
+  COMPANY_OWNER @join__graph(name: "Company.owner" url: "http://base:8080")
+  PERSON_ID @join__graph(name: "Person.id" url: "http://base:8080")
+  PERSON_NAME @join__graph(name: "Person.name" url: "http://base:8080")
+  COUNTRY_ID @join__graph(name: "Country.id" url: "http://base:8080")
+  COUNTRY_NAME @join__graph(name: "Country.name" url: "http://base:8080")
 }
 
 type Query {

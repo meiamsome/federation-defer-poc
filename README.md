@@ -38,10 +38,12 @@ By default it expects the monolith on port 8080, Apollo Router on port 4000, and
 
 It will run every `.graphql` file in the `queries` folder against all of the graphs, using the `.variables.json` file with the same prefix for variables.
 
-To run Apollo Router, I recommend getting a binary in to this repository's folder, and running it with:
+A Docker Compose file is included for running a comparison. You can run it with:
 ```sh
-$ ./router --dev --supergraph supergraph/example.graphql
+$ SUPERGRAPH=./supergraph/example.graphql docker-compose up --build
 ```
+
+The supergraph file to use is set from the `SUPERGRAPH` environment variable. The queries will default to the `queries` folder, but may be overridden with the `QUERIES` environment variable.
 
 # Comparison Results:
 
@@ -50,12 +52,11 @@ This file represents the example service distribution from [my GitHub comment](h
 
 Using the `example.graphql` schema I get:
 ```sh
-% node index.js
-┌─────────┬──────────┬────────┬──────────────┬───────────┐
-│ (index) │ Monolith │ Router │ POC-no-defer │ POC-defer │
-├─────────┼──────────┼────────┼──────────────┼───────────┤
-│ example │   5.08   │  7.05  │     7.06     │   5.06    │
-└─────────┴──────────┴────────┴──────────────┴───────────┘
+┌─────────┬──────────┬───────────────┬──────────────┬───────────┐
+│ (index) │ Monolith │ Apollo Router │ POC-no-defer │ POC-defer │
+├─────────┼──────────┼───────────────┼──────────────┼───────────┤
+│ example │   5.19   │     7.21      │     7.25     │   5.24    │
+└─────────┴──────────┴───────────────┴──────────────┴───────────┘
 ```
 
 ## `monolith.graphql` Supergraph Schema
@@ -63,12 +64,11 @@ This file represents a service distribution where there is only a single subgrap
 
 Using the `monolith.graphql` schema I get:
 ```sh
-% node index.js
-┌─────────┬──────────┬────────┬──────────────┬───────────┐
-│ (index) │ Monolith │ Router │ POC-no-defer │ POC-defer │
-├─────────┼──────────┼────────┼──────────────┼───────────┤
-│ example │   5.17   │  5.14  │     5.19     │   5.19    │
-└─────────┴──────────┴────────┴──────────────┴───────────┘
+┌─────────┬──────────┬───────────────┬──────────────┬───────────┐
+│ (index) │ Monolith │ Apollo Router │ POC-no-defer │ POC-defer │
+├─────────┼──────────┼───────────────┼──────────────┼───────────┤
+│ example │   5.23   │     5.17      │     5.26     │   5.27    │
+└─────────┴──────────┴───────────────┴──────────────┴───────────┘
 ```
 
 ## `service_per_field.graphql` Supergraph Schema
@@ -76,12 +76,11 @@ This file represents the opposite extreme: a service distribution where there is
 
 Using the `service_per_field.graphql` schema I get:
 ```sh
-% node index.js
-┌─────────┬──────────┬────────┬──────────────┬───────────┐
-│ (index) │ Monolith │ Router │ POC-no-defer │ POC-defer │
-├─────────┼──────────┼────────┼──────────────┼───────────┤
-│ example │   5.09   │  5.12  │     5.11     │   5.09    │
-└─────────┴──────────┴────────┴──────────────┴───────────┘
+┌─────────┬──────────┬───────────────┬──────────────┬───────────┐
+│ (index) │ Monolith │ Apollo Router │ POC-no-defer │ POC-defer │
+├─────────┼──────────┼───────────────┼──────────────┼───────────┤
+│ example │   5.2    │     5.26      │     5.4      │    5.4    │
+└─────────┴──────────┴───────────────┴──────────────┴───────────┘
 ```
 
 ## `worst_case.graphql` Supergraph Schema
@@ -89,10 +88,9 @@ This file represents a service layout chosen to maximize latency of the example 
 
 Using the `worst_case.graphql` schema I get:
 ```sh
-% node index.js
-┌─────────┬──────────┬────────┬──────────────┬───────────┐
-│ (index) │ Monolith │ Router │ POC-no-defer │ POC-defer │
-├─────────┼──────────┼────────┼──────────────┼───────────┤
-│ example │   5.09   │  8.14  │     8.17     │   5.18    │
-└─────────┴──────────┴────────┴──────────────┴───────────┘
+┌─────────┬──────────┬───────────────┬──────────────┬───────────┐
+│ (index) │ Monolith │ Apollo Router │ POC-no-defer │ POC-defer │
+├─────────┼──────────┼───────────────┼──────────────┼───────────┤
+│ example │   5.21   │     8.22      │     8.27     │   5.23    │
+└─────────┴──────────┴───────────────┴──────────────┴───────────┘
 ```

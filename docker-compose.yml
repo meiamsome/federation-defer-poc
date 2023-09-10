@@ -1,0 +1,22 @@
+version: '3'
+services:
+  base:
+    build: ./base
+  defer-poc:
+    build: ./defer-poc
+    volumes:
+      - ${SUPERGRAPH}:/app/supergraph.graphql
+    command: ["node", "index.js", "supergraph.graphql"]
+  apollo-router:
+    image: ghcr.io/apollographql/router:v1.29.1
+    volumes:
+      - ${SUPERGRAPH}:/dist/schema/supergraph.graphql
+    command: ["--dev", "--supergraph", "schema/supergraph.graphql"]
+  tester:
+    build: .
+    depends_on:
+      - base
+      - defer-poc
+      - apollo-router
+    volumes:
+      - ${QUERIES:-./queries}:/app/queries

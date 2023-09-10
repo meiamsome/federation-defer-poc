@@ -4,22 +4,22 @@ import path from 'path';
 const servers = [
     {
         name: 'Monolith',
-        url: 'http://localhost:8080/',
+        url: 'http://base:8080/',
     },
     {
-        name: 'Router',
-        url: 'http://localhost:4000/',
+        name: 'Apollo Router',
+        url: 'http://apollo-router:4000/',
     },
     {
         name: 'POC-no-defer',
-        url: 'http://localhost:8090/',
+        url: 'http://defer-poc:8090/',
         headers: {
             'x-subgraph-defer': 'false',
         },
     },
     {
         name: 'POC-defer',
-        url: 'http://localhost:8090/',
+        url: 'http://defer-poc:8090/',
         headers: {
             'x-subgraph-defer': 'true',
         },
