@@ -83,3 +83,16 @@ Using the `service_per_field.graphql` schema I get:
 │ example │   5.09   │  5.12  │     5.11     │   5.09    │
 └─────────┴──────────┴────────┴──────────────┴───────────┘
 ```
+
+## `worst_case.graphql` Supergraph Schema
+This file represents a service layout chosen to maximize latency of the example query. I believe this to be the worst case. Even so, it is still a perfectly reasonable subgraph layout.
+
+Using the `worst_case.graphql` schema I get:
+```sh
+% node index.js
+┌─────────┬──────────┬────────┬──────────────┬───────────┐
+│ (index) │ Monolith │ Router │ POC-no-defer │ POC-defer │
+├─────────┼──────────┼────────┼──────────────┼───────────┤
+│ example │   5.09   │  8.14  │     8.17     │   5.18    │
+└─────────┴──────────┴────────┴──────────────┴───────────┘
+```
