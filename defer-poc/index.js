@@ -1,7 +1,6 @@
 import { readFile } from 'fs/promises';
-import { buildSchema, parse, validate } from 'graphql';
+import { buildSchema, executeSync, parse, validate } from 'graphql';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { createServer } from 'http'
 import { createPlan } from './plan.js';
 import { execute } from './execute.js';
@@ -55,7 +54,12 @@ const server = createServer((req, res) => {
 
         const result = await execute(plan, variables, schema, enableSubgraphDefer);
         res.setHeader('content-type', 'application/json');
-        res.end(JSON.stringify(result));
+        res.end(JSON.stringify(executeSync({
+            document,
+            schema,
+            rootValue: result.data,
+            variableValues: variables,
+        })));
     })().catch((error) => {
         console.log(error);
         res.statusCode = 500;

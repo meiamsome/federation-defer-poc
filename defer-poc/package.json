@@ -1,5 +1,5 @@
 {
-  "name": "federation-defer-poc",
+  "name": "federation-defer-poc-impl",
   "version": "0.1.0",
   "main": "index.js",
   "type": "module",
