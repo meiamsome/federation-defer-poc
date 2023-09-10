@@ -103,6 +103,7 @@ export const createPlan = (schema, document) => {
                                     plan: newPlan,
                                     selectionSets: [newPlan.selectionSet],
                                     path: [],
+                                    fields: [],
                                 };
                                 planStack.push(currentPlan);
                             } else if ([PLAN_INITIAL_OPERATION, PLAN_CHILD_OPERATION].includes(currentPlan.plan.type)) {
@@ -130,6 +131,19 @@ export const createPlan = (schema, document) => {
                                     },
                                     parentTypename: type.name,
                                     parentPath: [...currentPlan.path],
+                                    parentSelection:  {
+                                        kind: Kind.SELECTION_SET,
+                                        selections: [currentPlan.fields.reduceRight(
+                                            (subField, field) => ({
+                                                ...field,
+                                                selectionSet: {
+                                                    kind: Kind.SELECTION_SET,
+                                                    selections: [subField],
+                                                },
+                                            }),
+                                            keySelection,
+                                        )],
+                                    },
                                     keySelection,
                                 };
                                 if (!usablePlan) {
@@ -140,6 +154,7 @@ export const createPlan = (schema, document) => {
                                     plan: newPlan,
                                     selectionSets: [newPlan.selectionSet],
                                     path: [],
+                                    fields: [],
                                 };
                                 planStack.push(currentPlan);
                             } else {
@@ -163,6 +178,7 @@ export const createPlan = (schema, document) => {
                                 selections: [],
                             } : undefined,
                         }
+                        currentPlan.fields.push(subgraphFieldSelection);
                         currentPlan.selectionSets[currentPlan.selectionSets.length - 1].selections.push(subgraphFieldSelection);
                         if (fieldSelection.selectionSet) {
                             currentPlan.selectionSets.push(subgraphFieldSelection.selectionSet);
@@ -174,6 +190,7 @@ export const createPlan = (schema, document) => {
                         const fieldName = fieldSelection.name.value;
                         console.log(`START LEAVE ${fieldName} (${planStack[planStack.length - 1].path})`);
                         const currentPlan = planStack[planStack.length - 1];
+                        currentPlan.fields.pop();
                         if (fieldSelection.selectionSet) {
                             currentPlan.selectionSets.pop();
                             currentPlan.path.pop();

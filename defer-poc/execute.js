@@ -89,6 +89,11 @@ const wrapWithEntities = (selectionSet, typename) => ({
     }]
 });
 
+const wrapWithInlineFragment = (selectionSet) => ({
+    kind: Kind.INLINE_FRAGMENT,
+    selectionSet,
+})
+
 const wrapWithDefer = (selectionSet, label) => ({
     kind: Kind.INLINE_FRAGMENT,
     directives: [{
@@ -148,7 +153,7 @@ async function* multipartReader(reader, boundary) {
         throw new Error('Multipart end failure.');
 }
 
-const executeSubgraphOperation = async (plan, entities, rootPlan, variableValues, schema) => {
+const executeSubgraphOperation = async (plan, entities, rootPlan, variableValues, schema, enableSubgraphDefer) => {
     if (!isSchema(schema))
         throw new Error('schema is not a schema');
     console.log(`EXECUTING against ${plan.server}`);
@@ -174,16 +179,47 @@ const executeSubgraphOperation = async (plan, entities, rootPlan, variableValues
         selections:
             plan.children.length
                 ? [
-                    wrapWithDefer(
-                        resultSelectionSet,
-                        'result',
-                    )
+                    enableSubgraphDefer
+                        ? wrapWithDefer(
+                            resultSelectionSet,
+                            'result',
+                        )
+                        : wrapWithInlineFragment(resultSelectionSet),
+                    ...plan.children.map((childPlan, i) => {
+                        let childSelection = childPlan.parentSelection;
+                        if (isChild)
+                            childSelection = wrapWithEntities(childSelection, plan.parentTypename)
+
+                        createDefer(`child-${i}`);
+                        if (enableSubgraphDefer)
+                            return wrapWithDefer(childSelection, `child-${i}`);
+                        return wrapWithInlineFragment(childSelection);
+                    }),
                 ]
                 : [{
                     kind: Kind.INLINE_FRAGMENT,
                     selectionSet: resultSelectionSet,
                 }],
     };
+
+    const childrenRequests = plan.children.map(async (childPlan, i) => {
+        let currentData = [await deferPromises[`child-${i}`]];
+        if (isChild)
+            currentData = currentData.flatMap(x => x._entities)
+        for (const path of childPlan.parentPath) {
+            currentData = currentData.flatMap(x => x[path]);
+        }
+        if (childPlan.keySelection !== ID_SELECTION)
+            throw new Error('Unimplemented');
+        const entities = currentData.map((v) => ({
+            __typename: childPlan.parentTypename,
+            id: v.id,
+        }));
+        return {
+            path: childPlan.parentPath,
+            childData: await executeSubgraphOperation(childPlan, entities, rootPlan, variableValues, schema, enableSubgraphDefer),
+        };
+    })
 
     const document = {
         kind: Kind.DOCUMENT,
@@ -265,42 +301,42 @@ const executeSubgraphOperation = async (plan, entities, rootPlan, variableValues
         const result = await resp.json();
         if (result.errors?.length)
             throw new Error(`Errors calling ${plan.server}:${result.errors.map(x => JSON.stringify(x)).join(`\n`)}`);
-        for (const resolveDeferedPromise of Object.values(deferResolves))
-            resolveDeferedPromise(result.data);
+        for (const unresolvedDeferredPromises of Object.keys(deferResolves)) {
+            deferResolves[unresolvedDeferredPromises](result.data);
+            delete deferResolves[unresolvedDeferredPromises];
+            delete deferRejects[unresolvedDeferredPromises];
+        }
     } else {
         throw new Error(`Unacceptable response type ${contentType}`);
     }
 
     const data = await resultPromise;
     console.timeEnd(`Request ${plan.id}: ${plan.server} (${url})`);
+    for (const [unresolved, resolve] of Object.entries(deferResolves)) {
+        console.warn(`Child key unresolved ${unresolved}`);
+        resolve(data);
+    }
 
-    await Promise.all(plan.children.map(async (childPlan) => {
-        let currentData = [data];
+    for (const { path, childData } of await Promise.all(childrenRequests)) {
+        let targets = [data];
         if (isChild)
-            currentData = currentData.flatMap(x => x._entities)
-        for (const path of childPlan.parentPath) {
-            currentData = currentData.flatMap(x => x[path]);
+            targets = targets.flatMap(x => x._entities)
+        for (const pathPart of path) {
+            targets = targets.flatMap(x => x[pathPart]);
         }
-        if (childPlan.keySelection !== ID_SELECTION)
-            throw new Error('Unimplemented');
-        const entities = currentData.map((v) => ({
-            __typename: childPlan.parentTypename,
-            id: v.id,
-        }));
-        const childData = await executeSubgraphOperation(childPlan, entities, rootPlan, variableValues, schema);
-        currentData.map((data, i) => Object.assign(data, childData._entities[i]));
-    }));
+        targets.map((target, i) => Object.assign(target, childData._entities[i]));
+    }
 
     return data;
 }
 
 
-export const execute = async (rootPlan, variableValues, schema) => {
+export const execute = async (rootPlan, variableValues, schema, enableSubgraphDefer) => {
     if (!isSchema(schema))
         throw new Error('schema is not a schema');
     if ('representations' in variableValues)
         throw new Error("'representations' is a reserved variable name.");
-    const results = await Promise.all(rootPlan.children.map((plan) => executeSubgraphOperation(plan, [], rootPlan, variableValues, schema)));
+    const results = await Promise.all(rootPlan.children.map((plan) => executeSubgraphOperation(plan, [], rootPlan, variableValues, schema, enableSubgraphDefer)));
     return {
         data: results.reduce((objA, objB) => ({ ...objA, ...objB })),
     };

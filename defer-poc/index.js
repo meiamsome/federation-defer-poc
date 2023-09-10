@@ -50,7 +50,10 @@ const server = createServer((req, res) => {
         const plan = createPlan(schema, document);
         console.log('PLAN:');
         console.log(JSON.stringify(plan, undefined, 4));
-        const result = await execute(plan, variables, schema);
+
+        const enableSubgraphDefer = req.headers['x-subgraph-defer'] !== 'false';
+
+        const result = await execute(plan, variables, schema, enableSubgraphDefer);
         res.setHeader('content-type', 'application/json');
         res.end(JSON.stringify(result));
     })().catch((error) => {
