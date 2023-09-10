@@ -16,6 +16,7 @@ export const createPlan = (schema, document) => {
     if (!isSchema(schema))
         throw new Error('schema is not a schema');
 
+    let planId = 0;
     const rootPlan = {
         type: PLAN_ROOT,
         server: null,
@@ -87,6 +88,7 @@ export const createPlan = (schema, document) => {
                                 const usablePlan = currentPlan.plan.children.find((plan) => plan.type === PLAN_INITIAL_OPERATION && plan.server === server);
                                 const newPlan = usablePlan ?? {
                                     type: PLAN_INITIAL_OPERATION,
+                                    id: planId++,
                                     server,
                                     variables: {},
                                     children: [],
@@ -118,6 +120,7 @@ export const createPlan = (schema, document) => {
                                 )
                                 const newPlan = usablePlan ?? {
                                     type: PLAN_CHILD_OPERATION,
+                                    id: planId++,
                                     server,
                                     variables: {},
                                     children: [],

@@ -21,44 +21,6 @@ const getServerUrl = (server, schema) => {
     return url;
 }
 
-const executeAgainstServer = async (operation, server, isChild, children, rootPlan, variableValues, schema) => {
-    const url = getServerUrl(server, schema);
-    console.time(`Request ${server} (${url})`);
-    const resp = await fetch(url, {
-        body: JSON.stringify(operation),
-        method: 'POST',
-        headers: {
-            'content-type': 'application/json',
-        },
-    });
-    if (!resp.ok)
-        throw new Error(`Request to ${server} failed: ${resp.status}\n${await resp.text()}`);
-    const result = await resp.json();
-    if (result.errors?.length)
-        throw new Error(`Errors calling ${server}:${result.errors.map(x => JSON.stringify(x)).join(`\n`)}`);
-
-    console.timeEnd(`Request ${server} (${url})`);
-
-    await Promise.all(children.map(async (childPlan) => {
-        let currentData = [result.data];
-        if (isChild)
-            currentData = currentData.flatMap(x => x._entities)
-        for (const path of childPlan.parentPath) {
-            currentData = currentData.flatMap(x => x[path]);
-        }
-        if (childPlan.keySelection !== ID_SELECTION)
-            throw new Error('Unimplemented');
-        const entities = currentData.map((v) => ({
-            __typename: childPlan.parentTypename,
-            id: v.id,
-        }));
-        const childData = await executeSubgraphOperation(childPlan, entities, rootPlan, variableValues, schema);
-        currentData.map((data, i) => Object.assign(data, childData._entities[i]));
-    }));
-
-    return result.data;
-}
-
 const REPRESENTATIONS_VARIABLE_DEFINITION = {
     kind: Kind.VARIABLE_DEFINITION,
     type: {
@@ -149,8 +111,10 @@ const executeSubgraphOperation = async (plan, entities, rootPlan, variableValues
     };
     const query = print(document);
     console.log(query);
-    const result = await executeAgainstServer(
-        {
+    const url = getServerUrl(plan.server, schema);
+    console.time(`Request ${plan.id}: ${plan.server} (${url})`);
+    const resp = await fetch(url, {
+        body: JSON.stringify({
             query,
             variables: Object.fromEntries(
                 [
@@ -158,16 +122,38 @@ const executeSubgraphOperation = async (plan, entities, rootPlan, variableValues
                     ...(isChild ? [['representations', entities]] : []),
                 ],
             ),
+        }),
+        method: 'POST',
+        headers: {
+            'content-type': 'application/json',
         },
-        plan.server,
-        isChild,
-        plan.children,
-        rootPlan,
-        variableValues,
-        schema,
-    );
+    });
+    if (!resp.ok)
+        throw new Error(`Request to ${plan.server} failed: ${resp.status}\n${await resp.text()}`);
+    const result = await resp.json();
+    if (result.errors?.length)
+        throw new Error(`Errors calling ${plan.server}:${result.errors.map(x => JSON.stringify(x)).join(`\n`)}`);
 
-    return result;
+    console.timeEnd(`Request ${plan.id}: ${plan.server} (${url})`);
+
+    await Promise.all(plan.children.map(async (childPlan) => {
+        let currentData = [result.data];
+        if (isChild)
+            currentData = currentData.flatMap(x => x._entities)
+        for (const path of childPlan.parentPath) {
+            currentData = currentData.flatMap(x => x[path]);
+        }
+        if (childPlan.keySelection !== ID_SELECTION)
+            throw new Error('Unimplemented');
+        const entities = currentData.map((v) => ({
+            __typename: childPlan.parentTypename,
+            id: v.id,
+        }));
+        const childData = await executeSubgraphOperation(childPlan, entities, rootPlan, variableValues, schema);
+        currentData.map((data, i) => Object.assign(data, childData._entities[i]));
+    }));
+
+    return result.data;
 }
 
 
