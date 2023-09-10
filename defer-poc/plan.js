@@ -74,9 +74,13 @@ export const createPlan = (schema, document) => {
                         const field = type.getFields()[fieldName];
                         if (!field)
                             throw new Error('field should be non-null');
-                        const directives = field.astNode.directives.filter((directive) => directive.name.value === 'join__field');
-                        if (directives.length > 1)
-                            throw new Error('Only one @join__field per field supported');
+                        let directives = field.astNode.directives.filter((directive) => directive.name.value === 'join__field');
+                        if (directives.length > 1) {
+                            const sameServerDirective = directives.find((directive) => directive.arguments.find((argument) => argument.name.value === 'graph').value.value === currentPlan.plan.server);
+                            if (sameServerDirective) {
+                                directives = [sameServerDirective];
+                            }
+                        }
                         if (directives.length === 0 && !planStack[planStack.length - 1].plan.server)
                             throw new Error(`Cannot infer parent server for field ${type.name}.${fieldName}`);
                         const server = directives.length
