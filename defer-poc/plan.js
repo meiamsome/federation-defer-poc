@@ -1,16 +1,8 @@
-import { Kind, TypeInfo, isSchema, visit, visitWithTypeInfo } from 'graphql';
+import { Kind, TypeInfo, isSchema, parse, visit, visitWithTypeInfo } from 'graphql';
 
 export const PLAN_ROOT = 'PLAN_ROOT';
 export const PLAN_INITIAL_OPERATION = 'PLAN_INITIAL_OPERATION';
 export const PLAN_CHILD_OPERATION = 'PLAN_CHILD_OPERATION';
-
-export const ID_SELECTION = {
-    kind: Kind.FIELD,
-    name: {
-        kind: Kind.NAME,
-        value: 'id',
-    },
-};
 
 export const createPlan = (schema, document) => {
     if (!isSchema(schema))
@@ -112,16 +104,30 @@ export const createPlan = (schema, document) => {
                                 planStack.push(currentPlan);
                             } else if ([PLAN_INITIAL_OPERATION, PLAN_CHILD_OPERATION].includes(currentPlan.plan.type)) {
                                 console.log('Creating child operation');
-                                // Append the key field to the parent. Assumes key field is always `id`.
-                                const keySelection = ID_SELECTION;
+                                const joins = type.astNode.directives.filter((directive) => directive.name.value === 'join__type');
+                                const parentServerJoins = joins.filter(
+                                    (directive) => directive.arguments.find((argument) => argument.name.value === 'graph').value.value === currentPlan.plan.server,
+                                );
+                                const childServerJoins = joins.filter(
+                                    (directive) => directive.arguments.find((argument) => argument.name.value === 'graph').value.value === server,
+                                );
+                                const compatibleJoin = parentServerJoins.find(
+                                    (parentDirective) => childServerJoins.find(
+                                        (childDirective) => parentDirective.arguments.find((argument) => argument.name.value === 'key').value.value === childDirective.arguments.find((argument) => argument.name.value === 'key').value.value,
+                                    )
+                                );
+                                if (!compatibleJoin)
+                                    throw new Error(`Failed to find compatible join for ${type.name}.${fieldName} between ${currentPlan.plan.server} and ${server}`);
+
+                                const keyString = compatibleJoin.arguments.find((argument) => argument.name.value === 'key').value.value;
+                                const keySelection = parse(`{ ${keyString} }`).definitions[0].selectionSet.selections[0];
                                 const usablePlan = currentPlan.plan.children.find((plan) =>
                                     plan.type === PLAN_CHILD_OPERATION &&
                                     plan.server === server &&
                                     plan.parentTypename === type.name &&
                                     plan.parentPath.length === currentPlan.path.length &&
                                     plan.parentPath.every((pathPart, i) => pathPart === currentPlan.path[i]) &&
-                                    // key selection should be the same by deep comparison, not object equality
-                                    plan.keySelection === keySelection
+                                    plan.keyString === keyString
                                 )
                                 const newPlan = usablePlan ?? {
                                     type: PLAN_CHILD_OPERATION,
@@ -148,6 +154,7 @@ export const createPlan = (schema, document) => {
                                             keySelection,
                                         )],
                                     },
+                                    keyString,
                                     keySelection,
                                 };
                                 if (!usablePlan) {

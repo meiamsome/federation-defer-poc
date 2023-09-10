@@ -1,5 +1,5 @@
-import { Kind, isEnumType, isSchema, print } from 'graphql';
-import { ID_SELECTION, PLAN_CHILD_OPERATION, PLAN_INITIAL_OPERATION } from './plan.js';
+import { Kind, isEnumType, isSchema, print, visit } from 'graphql';
+import { PLAN_CHILD_OPERATION } from './plan.js';
 
 const getServerUrl = (server, schema) => {
     if (!isSchema(schema))
@@ -117,6 +117,36 @@ const wrapWithDefer = (selectionSet, label) => ({
     selectionSet,
 });
 
+const selectValue = (value, selectionSet) => {
+    const result = {};
+    const resultStack = [result];
+    const valueStack = [value];
+    visit(
+        selectionSet,
+        {
+            Field: {
+                enter(fieldNode) {
+                    const name = fieldNode.name.value;
+                    const currentResult = resultStack[resultStack.length - 1];
+                    const currentValue = valueStack[valueStack.length - 1];
+                    if (fieldNode.selectionSet) {
+                        currentResult[name] = {};
+                    } else {
+                        currentResult[name] = currentValue[name];
+                    }
+                    resultStack.push(currentResult[name]);
+                    valueStack.push(currentValue[name]);
+                },
+                leave(fieldNode) {
+                    resultStack.pop();
+                    valueStack.pop();
+                }
+            }
+        }
+    );
+    return result;
+}
+
 async function* multipartReader(reader, boundary) {
     const utf8Decoder = new TextDecoder("utf-8");
     let hasFirstBoundary = false;
@@ -209,11 +239,9 @@ const executeSubgraphOperation = async (plan, entities, rootPlan, variableValues
         for (const path of childPlan.parentPath) {
             currentData = currentData.flatMap(x => x[path]);
         }
-        if (childPlan.keySelection !== ID_SELECTION)
-            throw new Error('Unimplemented');
         const entities = currentData.map((v) => ({
             __typename: childPlan.parentTypename,
-            id: v.id,
+            ...selectValue(v, childPlan.keySelection),
         }));
         return {
             path: childPlan.parentPath,
