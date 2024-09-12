@@ -1,0 +1,37 @@
+schema
+  @core(feature: "https://specs.apollo.dev/core/v0.1"),
+  @core(feature: "https://specs.apollo.dev/join/v0.1")
+{
+  query: Query
+}
+
+directive @core(feature: String!) repeatable on SCHEMA
+
+directive @join__field(graph: join__Graph, requires: join__FieldSet, provides: join__FieldSet) repeatable on FIELD_DEFINITION
+
+directive @join__type(graph: join__Graph!, key: join__FieldSet) repeatable on OBJECT | INTERFACE
+
+directive @join__owner(graph: join__Graph!) on OBJECT | INTERFACE
+
+directive @join__graph(name: String!, url: String!) on ENUM_VALUE
+
+scalar join__FieldSet
+
+enum join__Graph {
+  MONOLITH @join__graph(name: "monolith" url: "http://base:8080")
+  NEW_SUBGRAPH @join__graph(name: "new_subgraph" url: "http://base:8080")
+}
+
+type Query {
+  user(id: ID!): User @join__field(graph: MONOLITH) @join__field(graph: NEW_SUBGRAPH)
+}
+
+type User
+  @join__owner(graph: MONOLITH)
+  @join__type(graph: MONOLITH, key: "id")
+  @join__type(graph: NEW_SUBGRAPH, key: "id")
+{
+  id: ID! @join__field(graph: MONOLITH)
+  name: String! @join__field(graph: MONOLITH)
+  profilePhoto: String! @join__field(graph: NEW_SUBGRAPH)
+}

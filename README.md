@@ -21,6 +21,20 @@ Using the `monolith_and_new_subgraph.graphql` schema I get:
 
 Which shows the POC defer approach to be effective in this use case.
 
+## `monolith_and_new_subgraph_both_query.graphql` Supergraph Schema
+This represents both the monolith and the subgraph having `Query.user` defined as `@shareable`.
+
+Using the `monolith_and_new_subgraph_both_query.graphql` schema I get:
+```
+┌─────────┬──────────┬───────────────┬──────────────┬───────────┐
+│ (index) │ Monolith │ Apollo Router │ POC-no-defer │ POC-defer │
+├─────────┼──────────┼───────────────┼──────────────┼───────────┤
+│ example │ 3.06     │ 3.04          │ 4.11         │ 3.12      │
+└─────────┴──────────┴───────────────┴──────────────┴───────────┘
+```
+
+This shows that Apollo Router correctly optimises this in to two parallel calls rather than waterfalling them in this case.
+
 ## `split_monolith.graphql` Supergraph Schema
 This file represents my suggested Stopgap Solution in this comment: https://github.com/apollographql/federation/issues/3141#issuecomment-2345250951
 
