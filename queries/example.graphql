@@ -1,14 +1,6 @@
 query GetProductDetails($id: ID!) {
-  product(id: $id) {
-    inStock
-    manufacturer {
-      name
-      owner {
-        name
-      }
-    }
-    countryOfOrigin {
-      name
-    }
+  user(id: $id) {
+    name
+    profilePhoto
   }
 }

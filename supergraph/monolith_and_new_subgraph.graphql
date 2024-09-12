@@ -18,32 +18,20 @@ directive @join__graph(name: String!, url: String!) on ENUM_VALUE
 scalar join__FieldSet
 
 enum join__Graph {
-  PRODUCT @join__graph(name: "product" url: "http://base:8080")
+  MONOLITH @join__graph(name: "monolith" url: "http://base:8080")
+  NEW_SUBGRAPH @join__graph(name: "new_subgraph" url: "http://base:8080")
 }
 
 type Query {
-  product(id: ID!): Product @join__field(graph: PRODUCT)
+  user(id: ID!): User @join__field(graph: MONOLITH)
 }
 
-type Product {
-  id: ID!
-  manufacturer: Company!
-  countryOfOrigin: Country!
-  inStock: Boolean!
-}
-
-type Company {
-  id: ID!
-  name: String!
-  owner: Person!
-}
-
-type Person {
-  id: ID!
-  name: String!
-}
-
-type Country {
-  id: ID!
-  name: String!
+type User
+  @join__owner(graph: MONOLITH)
+  @join__type(graph: MONOLITH, key: "id")
+  @join__type(graph: NEW_SUBGRAPH, key: "id")
+{
+  id: ID! @join__field(graph: MONOLITH)
+  name: String! @join__field(graph: MONOLITH)
+  profilePhoto: String! @join__field(graph: NEW_SUBGRAPH)
 }
